@@ -5,7 +5,6 @@ import User from '../models/usersModel.js';
 export const checkAuth = async (req, res) => {
     try {
         const token = req.cookies.jwt;
-
         if (!token) {
             return res.send({ "status": "failed", "message": "Unauthorized user" });
         }
@@ -16,7 +15,7 @@ export const checkAuth = async (req, res) => {
         res.status(201).send({
             "status": "success",
             "message": "Authorized user",
-            "currentStaff": currentUser,
+            "currentUser": currentUser,
             "role": currentUser.role
         });
     } catch (error) {
@@ -71,16 +70,28 @@ export const registerUser = async (req, res) => {
 
 export const loginUser = async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { username, password, role } = req.body;
 
         if (!username || !password) {
-            return res.send({ "status": "failed", "message": "All fields are required" });
+            return res.status(400).json({ status: "failed", message: "All fields are required" });
         }
 
-        const user = await User.findOne({ username: username });
+        let user;
+        let query;
+        if (role === "user") {
+            query = {
+                username
+            };
+        } else {
+            query = {
+                username,
+                role: 'admin'
+            };
+        }
+        user = await User.findOne(query);
 
         if (!user) {
-            return res.send({ "status": "failed", "message": "You are not a registered user" });
+            return res.status(401).json({ status: "failed", message: `Invalid credentials for ${role}` });
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
@@ -88,19 +99,20 @@ export const loginUser = async (req, res) => {
         if (isMatch) {
             // Generate JWT Token
             const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET_KEY, { expiresIn: '7d' });
-
             // Save token to cookie
-            res.cookie("jwt", token, {
+            res.cookie('jwt', token, {
                 maxAge: 60000 * 60 * 24 * 7,
-                httpOnly: true
+                httpOnly: true,
+                // secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
             });
 
-            return res.send({ "status": "success", "message": "Logged in successfully", "token": token });
+            return res.json({ status: "success", message: "Logged in successfully", token: token });
         } else {
-            return res.send({ "status": "failed", "message": "Username or password is not valid" });
+            return res.status(401).json({ status: "failed", message: "Invalid username or password" });
         }
     } catch (error) {
-        res.status(500).send({ "status": "failed", "message": "Unable to login" });
+        console.error("Login error:", error);
+        res.status(500).json({ status: "failed", message: "Unable to login" });
     }
 };
 
@@ -109,7 +121,6 @@ export const logout = async (req, res) => {
     try {
         // Clear the JWT cookie
         res.clearCookie("jwt");
-
         res.send({ "status": "success", "message": "Logged out successfully" });
     } catch (error) {
         console.error("Error during logout:", error);
