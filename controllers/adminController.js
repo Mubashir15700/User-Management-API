@@ -11,6 +11,23 @@ export const fetchAllUsers = async (req, res) => {
     }
 };
 
+export const editUser = async (req, res) => {
+    try {
+        await User.findByIdAndUpdate(req.body._id, {
+            $set: {
+                username: req.body.username,
+                phone: req.body.phone,
+                email: req.body.email
+            }
+        });
+
+        res.status(200).json({ status: 'success', message: 'Updated user successfully' });
+    } catch (error) {
+        console.error('Error updating user:', error);
+        res.status(500).json({ status: 'failed', message: 'Unable to update user' });
+    }
+};
+
 export const deleteUser = async (req, res) => {
     try {
         const userId = req.body.id;
